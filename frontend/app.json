@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Pattern Coach",
+    "slug": "pattern-coach",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "patterncoach",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ttdadiva.patterncoach",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Find patterns using your camera",
+        "NSPhotoLibraryUsageDescription": "Choose pattern photos from gallery"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#10B981"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.ttdadiva.patterncoach",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#10B981"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Pattern Coach needs camera access to help kids find patterns in the real world."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Pattern Coach needs photo access to analyze pattern images."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "69e04c8a-361b-4891-8183-e8c04de576a8"
+      }
+    },
+    "owner": "ttdadiva"
+  }
+}
