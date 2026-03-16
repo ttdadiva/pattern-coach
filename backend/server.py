@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 import bcrypt
 import jwt
 import base64
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+import httpx
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -412,11 +412,9 @@ async def analyze_pattern(data: PatternAnalysis, user = Depends(get_current_user
         raise HTTPException(status_code=500, detail="AI service not configured")
     
     try:
-        # Initialize LLM chat for pattern analysis
-        chat = LlmChat(
-            api_key=EMERGENT_LLM_KEY,
-            session_id=f"pattern-{user['id']}-{uuid.uuid4()}",
-            system_message="""You are a friendly pattern recognition assistant for children aged 3-8. 
+        import json
+        
+        system_message = """You are a friendly pattern recognition assistant for children aged 3-8. 
 Analyze the image and identify ANY patterns you can see. 
 Be encouraging and use simple, kid-friendly language!
 
@@ -441,23 +439,50 @@ Respond in JSON format with:
 }
 
 If no clear patterns are found, still be encouraging and suggest what to look for next."""
-        ).with_model("openai", "gpt-4o")
-        
-        # Create image content
-        # image_content = ImageContent(image_base64=data.image_base64)
-        
-        # Send message with image
-        message = UserMessage(
-            text=f"What patterns can you see in this picture? Please analyze it for a child. [IMAGE PROVIDED] Respond in JSON format with patterns_found, description, pattern_count, encouragement, and score fields."
-        )
-        
-        response = await chat.send_message(message)
+
+        # Use OpenAI API directly via httpx
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {EMERGENT_LLM_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "gpt-4o",
+                    "messages": [
+                        {"role": "system", "content": system_message},
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "What patterns can you see in this picture? Please analyze it for a child. Respond in JSON format."
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{data.image_base64}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "max_tokens": 500
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"OpenAI API error: {response.text}")
+                raise HTTPException(status_code=500, detail="AI analysis failed")
+            
+            result_data = response.json()
+            response_text = result_data["choices"][0]["message"]["content"]
         
         # Try to parse JSON response
-        import json
         try:
             # Clean up response if needed
-            response_text = response.strip()
+            response_text = response_text.strip()
             if response_text.startswith("```json"):
                 response_text = response_text[7:]
             if response_text.startswith("```"):
@@ -470,7 +495,7 @@ If no clear patterns are found, still be encouraging and suggest what to look fo
             # If JSON parsing fails, create a structured response
             result = {
                 "patterns_found": ["pattern"],
-                "description": response[:200] if len(response) > 200 else response,
+                "description": response_text[:200] if len(response_text) > 200 else response_text,
                 "pattern_count": 1,
                 "encouragement": "Great job taking that picture! Keep exploring!",
                 "score": 5
