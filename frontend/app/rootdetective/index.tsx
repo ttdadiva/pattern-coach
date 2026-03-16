@@ -15,7 +15,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Button } from '../../src/components';
 import { COLORS, SPACING, FONTS } from '../../src/theme';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://code-coach-ai.preview.emergentagent.com';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://root-detective.preview.emergentagent.com';
 
 interface WordPart {
   text: string;

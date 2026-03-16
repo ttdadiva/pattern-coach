@@ -17,7 +17,7 @@ import { useGameStore } from '../../src/store/gameStore';
 import { MissionCard, Honeybee, Button } from '../../src/components';
 import { COLORS, SPACING, FONTS, SHADOWS } from '../../src/theme';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://code-coach-ai.preview.emergentagent.com';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://root-detective.preview.emergentagent.com';
 
 export default function WorldDetail() {
   const router = useRouter();

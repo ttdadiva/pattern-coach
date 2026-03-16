@@ -12,7 +12,7 @@ import sys
 from typing import Dict, Optional
 
 # Use production backend URL from frontend environment
-API_BASE_URL = "https://code-coach-ai.preview.emergentagent.com/api"
+API_BASE_URL = "https://root-detective.preview.emergentagent.com/api"
 
 # Test data
 import random
