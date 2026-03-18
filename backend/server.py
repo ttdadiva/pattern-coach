@@ -516,38 +516,88 @@ for level_key, level_data in ROOT_WORDS_DATABASE.items():
         ROOT_WORDS.append(root_copy)
 
 @api_router.get("/roots")
-async def get_roots(user = Depends(get_current_user), level: str = None):
-    """Get all root words grouped by root, optionally filtered by level"""
+async def get_roots(user = Depends(get_current_user), level: str = None, stacked: bool = False):
+    """Get all root words grouped by root, optionally filtered by level
+    
+    Args:
+        level: Specific level to get (level_1, level_2, level_3)
+        stacked: If True, includes all words from previous levels too
+    """
     child_age = user.get('child_age', 5)
+    root_progress = user.get('root_progress', {})
+    
+    # Calculate what levels are unlocked
+    level1_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+                          for r in ROOT_WORDS_DATABASE["level_1"]["roots"])
+    level2_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+                          for r in ROOT_WORDS_DATABASE["level_2"]["roots"])
+    
+    level2_unlocked = level1_completed >= 20
+    level3_unlocked = level2_completed >= 25
     
     # Determine which level to show
     if level:
         # User requested specific level
-        if level in ROOT_WORDS_DATABASE:
-            filtered_roots = get_level_roots(level)
-            level_info = ROOT_WORDS_DATABASE[level]
-        else:
+        if level not in ROOT_WORDS_DATABASE:
             raise HTTPException(status_code=404, detail="Level not found")
+        
+        # Check if level is unlocked
+        if level == "level_2" and not level2_unlocked:
+            raise HTTPException(status_code=403, detail=f"Complete 20 more words in Level 1 to unlock Level 2. Progress: {level1_completed}/20")
+        if level == "level_3" and not level3_unlocked:
+            raise HTTPException(status_code=403, detail=f"Complete 25 more words in Level 2 to unlock Level 3. Progress: {level2_completed}/25")
+        
+        level_info = ROOT_WORDS_DATABASE[level]
     else:
-        # Auto-select based on age
-        if child_age <= 5:
-            level = "level_1"
-        elif child_age <= 8:
+        # Auto-select based on age AND progress
+        if child_age >= 8 and level3_unlocked:
+            level = "level_3"
+        elif child_age >= 6 and level2_unlocked:
             level = "level_2"
         else:
-            level = "level_3"
+            level = "level_1"
         
-        filtered_roots = get_level_roots(level)
         level_info = ROOT_WORDS_DATABASE[level]
     
+    # Get roots - either single level or stacked
+    if stacked:
+        # Stacked mode: include all unlocked levels up to current
+        filtered_roots = []
+        levels_to_include = ["level_1"]
+        if level in ["level_2", "level_3"] and level2_unlocked:
+            levels_to_include.append("level_2")
+        if level == "level_3" and level3_unlocked:
+            levels_to_include.append("level_3")
+        
+        for lvl in levels_to_include:
+            for root in ROOT_WORDS_DATABASE[lvl]["roots"]:
+                root_with_level = root.copy()
+                root_with_level["source_level"] = lvl
+                root_with_level["source_level_name"] = ROOT_WORDS_DATABASE[lvl]["name"]
+                filtered_roots.append(root_with_level)
+    else:
+        # Single level mode
+        filtered_roots = []
+        for root in get_level_roots(level):
+            root_with_level = root.copy()
+            root_with_level["source_level"] = level
+            root_with_level["source_level_name"] = level_info["name"]
+            filtered_roots.append(root_with_level)
+    
     # Add progress info
-    root_progress = user.get('root_progress', {})
     roots_with_progress = []
     for root in filtered_roots:
         root_copy = root.copy()
         root_copy['completed_words'] = root_progress.get(root['id'], {}).get('completed', [])
         root_copy['mastered'] = len(root_copy['completed_words']) >= len(root['words'])
         roots_with_progress.append(root_copy)
+    
+    # Calculate total progress across all levels (stacked)
+    total_words_all = sum(sum(len(r['words']) for r in ROOT_WORDS_DATABASE[l]["roots"]) 
+                         for l in ["level_1", "level_2", "level_3"])
+    completed_all = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+                       for l in ["level_1", "level_2", "level_3"] 
+                       for r in ROOT_WORDS_DATABASE[l]["roots"])
     
     return {
         "roots": roots_with_progress,
@@ -557,14 +607,32 @@ async def get_roots(user = Depends(get_current_user), level: str = None):
         "level": level,
         "level_name": level_info["name"],
         "level_description": level_info["description"],
-        "available_levels": get_level_stats()
+        "stacked": stacked,
+        "available_levels": get_level_stats(),
+        # Stacked progress tracking
+        "overall_progress": {
+            "total_words": total_words_all,
+            "completed_words": completed_all,
+            "progress_percent": int((completed_all / total_words_all) * 100) if total_words_all > 0 else 0,
+            "level1_unlocked": True,
+            "level2_unlocked": level2_unlocked,
+            "level3_unlocked": level3_unlocked,
+            "level1_progress": f"{level1_completed}/{sum(len(r['words']) for r in ROOT_WORDS_DATABASE['level_1']['roots'])}",
+            "level2_progress": f"{level2_completed}/{sum(len(r['words']) for r in ROOT_WORDS_DATABASE['level_2']['roots'])}",
+            "words_until_level2": max(0, 20 - level1_completed),
+            "words_until_level3": max(0, 25 - level2_completed),
+        }
     }
 
 @api_router.get("/roots/levels")
 async def get_root_levels(user = Depends(get_current_user)):
-    """Get all available levels with stats"""
+    """Get all available levels with stats and stacking info"""
     child_age = user.get('child_age', 5)
     root_progress = user.get('root_progress', {})
+    
+    # Calculate cumulative progress for stacking
+    cumulative_completed = 0
+    cumulative_total = 0
     
     levels = []
     for level_key, level_data in ROOT_WORDS_DATABASE.items():
@@ -575,18 +643,37 @@ async def get_root_levels(user = Depends(get_current_user)):
         for root in level_roots:
             completed += len(root_progress.get(root['id'], {}).get('completed', []))
         
-        # Determine if unlocked
+        # Update cumulative counts
+        cumulative_completed += completed
+        cumulative_total += total_words
+        
+        # Determine if unlocked based on previous level progress
         unlocked = True
+        unlock_requirement = 0
+        previous_completed = 0
+        
         if level_key == "level_2":
-            # Unlock level 2 after completing 20 words in level 1
-            level1_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+            previous_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
                                    for r in ROOT_WORDS_DATABASE["level_1"]["roots"])
-            unlocked = level1_completed >= 20
+            unlock_requirement = 20
+            unlocked = previous_completed >= unlock_requirement
         elif level_key == "level_3":
-            # Unlock level 3 after completing 25 words in level 2
-            level2_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+            previous_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
                                    for r in ROOT_WORDS_DATABASE["level_2"]["roots"])
-            unlocked = level2_completed >= 25
+            unlock_requirement = 25
+            unlocked = previous_completed >= unlock_requirement
+        
+        # Determine mastery status
+        mastery_percent = int((completed / total_words) * 100) if total_words > 0 else 0
+        mastery_status = "not_started"
+        if mastery_percent >= 100:
+            mastery_status = "mastered"
+        elif mastery_percent >= 75:
+            mastery_status = "advanced"
+        elif mastery_percent >= 50:
+            mastery_status = "intermediate"
+        elif mastery_percent > 0:
+            mastery_status = "beginner"
         
         levels.append({
             "id": level_key,
@@ -596,11 +683,103 @@ async def get_root_levels(user = Depends(get_current_user)):
             "total_roots": len(level_roots),
             "total_words": total_words,
             "completed_words": completed,
-            "progress_percent": int((completed / total_words) * 100) if total_words > 0 else 0,
-            "unlocked": unlocked
+            "progress_percent": mastery_percent,
+            "unlocked": unlocked,
+            "unlock_requirement": unlock_requirement,
+            "previous_level_progress": previous_completed,
+            "words_until_unlock": max(0, unlock_requirement - previous_completed) if not unlocked else 0,
+            "mastery_status": mastery_status,
+            # Cumulative stacking info
+            "cumulative_total": cumulative_total,
+            "cumulative_completed": cumulative_completed,
+            "cumulative_percent": int((cumulative_completed / cumulative_total) * 100) if cumulative_total > 0 else 0,
         })
     
-    return {"levels": levels}
+    # Overall stats
+    total_all = sum(l["total_words"] for l in levels)
+    completed_all = sum(l["completed_words"] for l in levels)
+    
+    return {
+        "levels": levels,
+        "overall_stats": {
+            "total_words": total_all,
+            "completed_words": completed_all,
+            "progress_percent": int((completed_all / total_all) * 100) if total_all > 0 else 0,
+            "total_roots": sum(l["total_roots"] for l in levels),
+            "mastered_levels": sum(1 for l in levels if l["mastery_status"] == "mastered"),
+            "unlocked_levels": sum(1 for l in levels if l["unlocked"]),
+        }
+    }
+
+@api_router.get("/roots/stacked")
+async def get_stacked_roots(user = Depends(get_current_user)):
+    """Get ALL unlocked words across all levels in one stacked view"""
+    root_progress = user.get('root_progress', {})
+    
+    # Calculate what levels are unlocked
+    level1_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+                          for r in ROOT_WORDS_DATABASE["level_1"]["roots"])
+    level2_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+                          for r in ROOT_WORDS_DATABASE["level_2"]["roots"])
+    
+    level2_unlocked = level1_completed >= 20
+    level3_unlocked = level2_completed >= 25
+    
+    # Build stacked roots list
+    all_roots = []
+    levels_included = []
+    
+    # Always include level 1
+    for root in ROOT_WORDS_DATABASE["level_1"]["roots"]:
+        root_copy = root.copy()
+        root_copy["source_level"] = "level_1"
+        root_copy["source_level_name"] = "Little Explorers"
+        root_copy['completed_words'] = root_progress.get(root['id'], {}).get('completed', [])
+        root_copy['mastered'] = len(root_copy['completed_words']) >= len(root['words'])
+        all_roots.append(root_copy)
+    levels_included.append("level_1")
+    
+    # Include level 2 if unlocked
+    if level2_unlocked:
+        for root in ROOT_WORDS_DATABASE["level_2"]["roots"]:
+            root_copy = root.copy()
+            root_copy["source_level"] = "level_2"
+            root_copy["source_level_name"] = "Word Builders"
+            root_copy['completed_words'] = root_progress.get(root['id'], {}).get('completed', [])
+            root_copy['mastered'] = len(root_copy['completed_words']) >= len(root['words'])
+            all_roots.append(root_copy)
+        levels_included.append("level_2")
+    
+    # Include level 3 if unlocked
+    if level3_unlocked:
+        for root in ROOT_WORDS_DATABASE["level_3"]["roots"]:
+            root_copy = root.copy()
+            root_copy["source_level"] = "level_3"
+            root_copy["source_level_name"] = "Word Masters"
+            root_copy['completed_words'] = root_progress.get(root['id'], {}).get('completed', [])
+            root_copy['mastered'] = len(root_copy['completed_words']) >= len(root['words'])
+            all_roots.append(root_copy)
+        levels_included.append("level_3")
+    
+    # Calculate stats
+    total_words = sum(len(r['words']) for r in all_roots)
+    completed_words = sum(len(r.get('completed_words', [])) for r in all_roots)
+    mastered_roots = sum(1 for r in all_roots if r['mastered'])
+    
+    return {
+        "roots": all_roots,
+        "part_colors": PART_COLORS,
+        "levels_included": levels_included,
+        "total_roots": len(all_roots),
+        "mastered_roots": mastered_roots,
+        "total_words": total_words,
+        "completed_words": completed_words,
+        "progress_percent": int((completed_words / total_words) * 100) if total_words > 0 else 0,
+        "level2_unlocked": level2_unlocked,
+        "level3_unlocked": level3_unlocked,
+        "words_until_level2": max(0, 20 - level1_completed),
+        "words_until_level3": max(0, 25 - level2_completed),
+    }
 
 @api_router.get("/roots/{root_id}")
 async def get_root_detail(root_id: str, user = Depends(get_current_user)):
