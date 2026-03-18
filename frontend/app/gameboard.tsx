@@ -18,7 +18,7 @@ import { useAuth } from '../src/context/AuthContext';
 import { Button } from '../src/components';
 import { COLORS, SPACING, FONTS } from '../src/theme';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://root-detective.preview.emergentagent.com';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://pattern-coach.onrender.com';
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BOARD_PADDING = 8;
 const TILE_GAP = 3;
