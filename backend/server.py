@@ -503,200 +503,104 @@ PART_COLORS = {
     "suffix": "#F59E0B",    # Orange
 }
 
-# 5 Roots with 3 words each (15 words total)
-ROOT_WORDS = [
-    # Simple roots for ages 3-5
-    {
-        "id": "play",
-        "root": "play",
-        "meaning": "to have fun",
-        "age_group": "3-5",
-        "color": "#10B981",
-        "words": [
-            {
-                "word": "play",
-                "parts": [{"text": "play", "type": "root"}],
-                "part_of_speech": "verb",
-                "definition": "to have fun with toys or games",
-                "emoji": "🎮",
-                "sentence": "I like to play with my friends."
-            },
-            {
-                "word": "player",
-                "parts": [{"text": "play", "type": "root"}, {"text": "er", "type": "suffix"}],
-                "part_of_speech": "noun",
-                "definition": "a person who plays",
-                "emoji": "🧑‍🤝‍🧑",
-                "sentence": "She is a good player."
-            },
-            {
-                "word": "playful",
-                "parts": [{"text": "play", "type": "root"}, {"text": "ful", "type": "suffix"}],
-                "part_of_speech": "adjective",
-                "definition": "full of fun and energy",
-                "emoji": "🐕",
-                "sentence": "The playful puppy runs around."
-            }
-        ]
-    },
-    {
-        "id": "help",
-        "root": "help",
-        "meaning": "to give support",
-        "age_group": "3-5",
-        "color": "#3B82F6",
-        "words": [
-            {
-                "word": "help",
-                "parts": [{"text": "help", "type": "root"}],
-                "part_of_speech": "verb",
-                "definition": "to give support to someone",
-                "emoji": "🤝",
-                "sentence": "Can you help me?"
-            },
-            {
-                "word": "helper",
-                "parts": [{"text": "help", "type": "root"}, {"text": "er", "type": "suffix"}],
-                "part_of_speech": "noun",
-                "definition": "a person who helps",
-                "emoji": "👷",
-                "sentence": "Mom is my helper."
-            },
-            {
-                "word": "helpful",
-                "parts": [{"text": "help", "type": "root"}, {"text": "ful", "type": "suffix"}],
-                "part_of_speech": "adjective",
-                "definition": "giving help, useful",
-                "emoji": "💪",
-                "sentence": "You are so helpful!"
-            }
-        ]
-    },
-    {
-        "id": "kind",
-        "root": "kind",
-        "meaning": "nice and caring",
-        "age_group": "3-5",
-        "color": "#EC4899",
-        "words": [
-            {
-                "word": "kind",
-                "parts": [{"text": "kind", "type": "root"}],
-                "part_of_speech": "adjective",
-                "definition": "nice and caring to others",
-                "emoji": "💝",
-                "sentence": "Be kind to your friends."
-            },
-            {
-                "word": "kindness",
-                "parts": [{"text": "kind", "type": "root"}, {"text": "ness", "type": "suffix"}],
-                "part_of_speech": "noun",
-                "definition": "the quality of being kind",
-                "emoji": "🌸",
-                "sentence": "Kindness makes people happy."
-            },
-            {
-                "word": "unkind",
-                "parts": [{"text": "un", "type": "prefix"}, {"text": "kind", "type": "root"}],
-                "part_of_speech": "adjective",
-                "definition": "not nice, mean",
-                "emoji": "😢",
-                "sentence": "It is unkind to tease others."
-            }
-        ]
-    },
-    # Latin roots for ages 6-8
-    {
-        "id": "port",
-        "root": "port",
-        "meaning": "to carry",
-        "age_group": "6-8",
-        "color": "#8B5CF6",
-        "words": [
-            {
-                "word": "transport",
-                "parts": [{"text": "trans", "type": "prefix"}, {"text": "port", "type": "root"}],
-                "part_of_speech": "verb",
-                "definition": "to carry from one place to another",
-                "emoji": "🚚",
-                "sentence": "Trucks transport goods."
-            },
-            {
-                "word": "portable",
-                "parts": [{"text": "port", "type": "root"}, {"text": "able", "type": "suffix"}],
-                "part_of_speech": "adjective",
-                "definition": "able to be carried",
-                "emoji": "💼",
-                "sentence": "I have a portable game."
-            },
-            {
-                "word": "export",
-                "parts": [{"text": "ex", "type": "prefix"}, {"text": "port", "type": "root"}],
-                "part_of_speech": "verb",
-                "definition": "to carry out of a country",
-                "emoji": "📦",
-                "sentence": "We export apples to other countries."
-            }
-        ]
-    },
-    {
-        "id": "dict",
-        "root": "dict",
-        "meaning": "to say or speak",
-        "age_group": "6-8",
-        "color": "#F97316",
-        "words": [
-            {
-                "word": "dictate",
-                "parts": [{"text": "dict", "type": "root"}, {"text": "ate", "type": "suffix"}],
-                "part_of_speech": "verb",
-                "definition": "to say words for someone to write",
-                "emoji": "🗣️",
-                "sentence": "The teacher will dictate the spelling words."
-            },
-            {
-                "word": "dictionary",
-                "parts": [{"text": "dict", "type": "root"}, {"text": "ion", "type": "suffix"}, {"text": "ary", "type": "suffix"}],
-                "part_of_speech": "noun",
-                "definition": "a book of words and meanings",
-                "emoji": "📖",
-                "sentence": "Look it up in the dictionary."
-            },
-            {
-                "word": "predict",
-                "parts": [{"text": "pre", "type": "prefix"}, {"text": "dict", "type": "root"}],
-                "part_of_speech": "verb",
-                "definition": "to say what will happen before it does",
-                "emoji": "🔮",
-                "sentence": "Can you predict the weather?"
-            }
-        ]
-    }
-]
+# Import comprehensive root words database
+from root_words_data import ROOT_WORDS_DATABASE, get_level_words, get_level_roots, get_level_stats
+
+# Convert database to flat list for backward compatibility
+ROOT_WORDS = []
+for level_key, level_data in ROOT_WORDS_DATABASE.items():
+    for root in level_data["roots"]:
+        root_copy = root.copy()
+        root_copy["age_group"] = level_data["age_group"]
+        root_copy["level"] = level_key
+        ROOT_WORDS.append(root_copy)
 
 @api_router.get("/roots")
-async def get_roots(user = Depends(get_current_user)):
-    """Get all root words grouped by root"""
+async def get_roots(user = Depends(get_current_user), level: str = None):
+    """Get all root words grouped by root, optionally filtered by level"""
     child_age = user.get('child_age', 5)
     
-    # Filter by age appropriateness
-    if child_age <= 5:
-        filtered_roots = [r for r in ROOT_WORDS if r['age_group'] == '3-5']
+    # Determine which level to show
+    if level:
+        # User requested specific level
+        if level in ROOT_WORDS_DATABASE:
+            filtered_roots = get_level_roots(level)
+            level_info = ROOT_WORDS_DATABASE[level]
+        else:
+            raise HTTPException(status_code=404, detail="Level not found")
     else:
-        filtered_roots = ROOT_WORDS  # Show all for older kids
+        # Auto-select based on age
+        if child_age <= 5:
+            level = "level_1"
+        elif child_age <= 8:
+            level = "level_2"
+        else:
+            level = "level_3"
+        
+        filtered_roots = get_level_roots(level)
+        level_info = ROOT_WORDS_DATABASE[level]
     
     # Add progress info
     root_progress = user.get('root_progress', {})
+    roots_with_progress = []
     for root in filtered_roots:
-        root['completed_words'] = root_progress.get(root['id'], {}).get('completed', [])
-        root['mastered'] = len(root['completed_words']) >= len(root['words'])
+        root_copy = root.copy()
+        root_copy['completed_words'] = root_progress.get(root['id'], {}).get('completed', [])
+        root_copy['mastered'] = len(root_copy['completed_words']) >= len(root['words'])
+        roots_with_progress.append(root_copy)
     
     return {
-        "roots": filtered_roots,
+        "roots": roots_with_progress,
         "part_colors": PART_COLORS,
         "total_words": sum(len(r['words']) for r in filtered_roots),
-        "completed_words": sum(len(r.get('completed_words', [])) for r in filtered_roots)
+        "completed_words": sum(len(r.get('completed_words', [])) for r in roots_with_progress),
+        "level": level,
+        "level_name": level_info["name"],
+        "level_description": level_info["description"],
+        "available_levels": get_level_stats()
     }
+
+@api_router.get("/roots/levels")
+async def get_root_levels(user = Depends(get_current_user)):
+    """Get all available levels with stats"""
+    child_age = user.get('child_age', 5)
+    root_progress = user.get('root_progress', {})
+    
+    levels = []
+    for level_key, level_data in ROOT_WORDS_DATABASE.items():
+        # Count completed words for this level
+        level_roots = level_data["roots"]
+        total_words = sum(len(r['words']) for r in level_roots)
+        completed = 0
+        for root in level_roots:
+            completed += len(root_progress.get(root['id'], {}).get('completed', []))
+        
+        # Determine if unlocked
+        unlocked = True
+        if level_key == "level_2":
+            # Unlock level 2 after completing 20 words in level 1
+            level1_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+                                   for r in ROOT_WORDS_DATABASE["level_1"]["roots"])
+            unlocked = level1_completed >= 20
+        elif level_key == "level_3":
+            # Unlock level 3 after completing 25 words in level 2
+            level2_completed = sum(len(root_progress.get(r['id'], {}).get('completed', [])) 
+                                   for r in ROOT_WORDS_DATABASE["level_2"]["roots"])
+            unlocked = level2_completed >= 25
+        
+        levels.append({
+            "id": level_key,
+            "name": level_data["name"],
+            "age_group": level_data["age_group"],
+            "description": level_data["description"],
+            "total_roots": len(level_roots),
+            "total_words": total_words,
+            "completed_words": completed,
+            "progress_percent": int((completed / total_words) * 100) if total_words > 0 else 0,
+            "unlocked": unlocked
+        })
+    
+    return {"levels": levels}
 
 @api_router.get("/roots/{root_id}")
 async def get_root_detail(root_id: str, user = Depends(get_current_user)):
