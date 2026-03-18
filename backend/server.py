@@ -504,7 +504,7 @@ PART_COLORS = {
 }
 
 # Import comprehensive root words database
-from root_words_data import ROOT_WORDS_DATABASE, get_level_words, get_level_roots, get_level_stats
+from root_words_expanded import ROOT_WORDS_DATABASE, get_level_words, get_level_roots, get_level_stats
 
 # Convert database to flat list for backward compatibility
 ROOT_WORDS = []
