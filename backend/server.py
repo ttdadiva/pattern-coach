@@ -413,6 +413,7 @@ async def analyze_pattern(data: PatternAnalysis, user = Depends(get_current_user
     
     try:
         import json
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
         
         system_message = """You are a friendly pattern recognition assistant for children aged 3-8. 
 Analyze the image and identify ANY patterns you can see. 
@@ -440,44 +441,24 @@ Respond in JSON format with:
 
 If no clear patterns are found, still be encouraging and suggest what to look for next."""
 
-        # Use OpenAI API directly via httpx
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {EMERGENT_LLM_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "gpt-4o",
-                    "messages": [
-                        {"role": "system", "content": system_message},
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "text",
-                                    "text": "What patterns can you see in this picture? Please analyze it for a child. Respond in JSON format."
-                                },
-                                {
-                                    "type": "image_url",
-                                    "image_url": {
-                                        "url": f"data:image/jpeg;base64,{data.image_base64}"
-                                    }
-                                }
-                            ]
-                        }
-                    ],
-                    "max_tokens": 500
-                }
-            )
-            
-            if response.status_code != 200:
-                logger.error(f"OpenAI API error: {response.text}")
-                raise HTTPException(status_code=500, detail="AI analysis failed")
-            
-            result_data = response.json()
-            response_text = result_data["choices"][0]["message"]["content"]
+        # Initialize chat with Emergent LLM key
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"pattern-{user['id']}-{uuid.uuid4()}",
+            system_message=system_message
+        ).with_model("openai", "gpt-4o")
+        
+        # Create image content from base64
+        image_content = ImageContent(image_base64=data.image_base64)
+        
+        # Create message with image
+        user_message = UserMessage(
+            text="What patterns can you see in this picture? Please analyze it for a child. Respond in JSON format.",
+            file_contents=[image_content]
+        )
+        
+        # Send and get response
+        response_text = await chat.send_message(user_message)
         
         # Try to parse JSON response
         try:
@@ -500,6 +481,12 @@ If no clear patterns are found, still be encouraging and suggest what to look fo
                 "encouragement": "Great job taking that picture! Keep exploring!",
                 "score": 5
             }
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Pattern analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Pattern analysis failed: {str(e)}")
         
         return result
         
