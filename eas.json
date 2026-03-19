@@ -1,0 +1,36 @@
+{
+  "cli": {
+    "version": ">= 3.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "ios": {
+        "simulator": false
+      }
+    },
+    "production": {
+      "ios": {
+        "distribution": "store",
+        "resourceClass": "m-medium"
+      },
+      "android": {
+        "distribution": "store",
+        "buildType": "apk"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "twilson226@gmail.com",
+        "ascAppId": "6760629547",
+        "appleTeamId": "3VCSDY9U5D"
+      }
+    }
+  }
+}
