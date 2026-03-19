@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 import Constants from 'expo-constants';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://pattern-coach.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 interface User {
   id: string;

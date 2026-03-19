@@ -19,7 +19,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Honeybee, Button } from '../../src/components';
 import { COLORS, SPACING, FONTS, SHADOWS } from '../../src/theme';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://pattern-coach.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export default function Camera() {
   const { token, refreshUser } = useAuth();

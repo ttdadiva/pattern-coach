@@ -17,7 +17,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { Button } from '../../src/components';
 import { COLORS, SPACING, FONTS } from '../../src/theme';
 
-const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'https://pattern-coach.onrender.com';
+const API_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 interface WordPart {
   text: string;
