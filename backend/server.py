@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -9,11 +9,12 @@ from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 import base64
 import httpx
+import requests
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -30,6 +31,18 @@ JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 
 # LLM Config
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+
+# Stripe Config
+STRIPE_API_KEY = os.environ.get('STRIPE_API_KEY', 'sk_test_emergent')
+
+# Subscription Pricing
+SUBSCRIPTION_PLANS = {
+    "monthly": {"amount": 4.99, "name": "Monthly Plan", "interval": "month"},
+    "yearly": {"amount": 39.99, "name": "Yearly Plan (Save 33%)", "interval": "year"}
+}
+
+# Expo Push Notifications
+EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 
 # Create the main app
 app = FastAPI(title="Pattern Coach API", version="1.0.0")
@@ -73,6 +86,21 @@ class MissionComplete(BaseModel):
     world_id: str
     score: int = 0
     patterns_found: List[str] = []
+
+class CheckoutRequest(BaseModel):
+    plan: str  # "monthly" or "yearly"
+    origin_url: str
+
+class PushTokenRegister(BaseModel):
+    token: str
+    device_type: str
+    device_model: Optional[str] = None
+
+class NotificationPayload(BaseModel):
+    title: str
+    body: str
+    data: Dict[str, Any] = {}
+    notification_type: str  # daily_reminder, achievement, streak_reminder
 
 class UserResponse(BaseModel):
     id: str
@@ -986,28 +1014,404 @@ async def complete_board_mission(data: BoardMissionComplete, user = Depends(get_
         "level": new_level
     }
 
-# ==================== SUBSCRIPTION ENDPOINTS ====================
+# ==================== SUBSCRIPTION ENDPOINTS (STRIPE) ====================
 
 @api_router.post("/subscription/checkout")
-async def create_checkout(user = Depends(get_current_user)):
-    # For MVP, we'll simulate subscription activation
-    # In production, integrate with Stripe
+async def create_checkout(data: CheckoutRequest, request: Request, user = Depends(get_current_user)):
+    """Create a Stripe checkout session for subscription"""
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+    
+    if data.plan not in SUBSCRIPTION_PLANS:
+        raise HTTPException(status_code=400, detail="Invalid plan. Choose 'monthly' or 'yearly'")
+    
+    plan = SUBSCRIPTION_PLANS[data.plan]
+    
+    try:
+        # Initialize Stripe checkout
+        host_url = str(request.base_url).rstrip('/')
+        webhook_url = f"{host_url}/api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        
+        # Build success/cancel URLs from frontend origin
+        success_url = f"{data.origin_url}/subscription?session_id={{CHECKOUT_SESSION_ID}}&status=success"
+        cancel_url = f"{data.origin_url}/subscription?status=cancelled"
+        
+        # Create checkout session
+        checkout_request = CheckoutSessionRequest(
+            amount=plan["amount"],
+            currency="usd",
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={
+                "user_id": user['id'],
+                "user_email": user['email'],
+                "plan": data.plan,
+                "child_name": user.get('child_name', '')
+            }
+        )
+        
+        session = await stripe_checkout.create_checkout_session(checkout_request)
+        
+        # Record transaction in database
+        await db.payment_transactions.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user['id'],
+            "session_id": session.session_id,
+            "amount": plan["amount"],
+            "currency": "usd",
+            "plan": data.plan,
+            "payment_status": "pending",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        return {
+            "checkout_url": session.url,
+            "session_id": session.session_id
+        }
+        
+    except Exception as e:
+        logger.error(f"Checkout error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to create checkout: {str(e)}")
+
+@api_router.get("/subscription/status/{session_id}")
+async def get_checkout_status(session_id: str, user = Depends(get_current_user)):
+    """Check the status of a checkout session and update subscription"""
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout
+    
+    try:
+        host_url = "https://pattern-preview-2.preview.emergentagent.com"
+        webhook_url = f"{host_url}/api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        
+        status = await stripe_checkout.get_checkout_status(session_id)
+        
+        # Update transaction in database
+        await db.payment_transactions.update_one(
+            {"session_id": session_id},
+            {"$set": {
+                "payment_status": status.payment_status,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+        
+        # If payment successful, activate subscription
+        if status.payment_status == "paid":
+            # Get transaction to find plan
+            transaction = await db.payment_transactions.find_one({"session_id": session_id})
+            plan = transaction.get('plan', 'monthly') if transaction else 'monthly'
+            
+            # Calculate subscription end date
+            if plan == 'yearly':
+                sub_end = datetime.now(timezone.utc) + timedelta(days=365)
+            else:
+                sub_end = datetime.now(timezone.utc) + timedelta(days=30)
+            
+            await db.users.update_one(
+                {"id": user['id']},
+                {"$set": {
+                    "subscription_status": "active",
+                    "subscription_plan": plan,
+                    "subscription_start": datetime.now(timezone.utc).isoformat(),
+                    "subscription_end": sub_end.isoformat()
+                }}
+            )
+        
+        return {
+            "status": status.status,
+            "payment_status": status.payment_status,
+            "amount_total": status.amount_total,
+            "currency": status.currency
+        }
+        
+    except Exception as e:
+        logger.error(f"Status check error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to check status: {str(e)}")
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events"""
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout
+    
+    try:
+        body = await request.body()
+        signature = request.headers.get("Stripe-Signature")
+        
+        host_url = str(request.base_url).rstrip('/')
+        webhook_url = f"{host_url}/api/webhook/stripe"
+        stripe_checkout = StripeCheckout(api_key=STRIPE_API_KEY, webhook_url=webhook_url)
+        
+        webhook_response = await stripe_checkout.handle_webhook(body, signature)
+        
+        logger.info(f"Webhook event: {webhook_response.event_type}, session: {webhook_response.session_id}")
+        
+        # Update payment status
+        if webhook_response.session_id:
+            await db.payment_transactions.update_one(
+                {"session_id": webhook_response.session_id},
+                {"$set": {
+                    "payment_status": webhook_response.payment_status,
+                    "event_type": webhook_response.event_type,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+            
+            # If payment completed, activate subscription
+            if webhook_response.payment_status == "paid":
+                metadata = webhook_response.metadata or {}
+                user_id = metadata.get('user_id')
+                plan = metadata.get('plan', 'monthly')
+                
+                if user_id:
+                    if plan == 'yearly':
+                        sub_end = datetime.now(timezone.utc) + timedelta(days=365)
+                    else:
+                        sub_end = datetime.now(timezone.utc) + timedelta(days=30)
+                    
+                    await db.users.update_one(
+                        {"id": user_id},
+                        {"$set": {
+                            "subscription_status": "active",
+                            "subscription_plan": plan,
+                            "subscription_start": datetime.now(timezone.utc).isoformat(),
+                            "subscription_end": sub_end.isoformat()
+                        }}
+                    )
+        
+        return {"received": True}
+        
+    except Exception as e:
+        logger.error(f"Webhook error: {str(e)}")
+        return {"received": True, "error": str(e)}
+
+@api_router.get("/subscription/plans")
+async def get_subscription_plans():
+    """Get available subscription plans"""
     return {
-        "message": "Subscription checkout - integrate with Stripe for production",
-        "mock_checkout_url": "https://checkout.stripe.com/mock"
+        "plans": [
+            {
+                "id": "monthly",
+                "name": "Monthly Plan",
+                "price": 4.99,
+                "currency": "USD",
+                "interval": "month",
+                "features": ["All 5 worlds", "Unlimited pattern scans", "175+ vocabulary words", "Progress tracking"]
+            },
+            {
+                "id": "yearly",
+                "name": "Yearly Plan",
+                "price": 39.99,
+                "currency": "USD",
+                "interval": "year",
+                "savings": "Save 33%",
+                "features": ["All 5 worlds", "Unlimited pattern scans", "175+ vocabulary words", "Progress tracking", "Priority support"]
+            }
+        ]
     }
 
 @api_router.post("/subscription/activate")
 async def activate_subscription(user = Depends(get_current_user)):
-    # Activate subscription (for demo/testing)
+    """Activate subscription (for demo/testing)"""
     await db.users.update_one(
         {"id": user['id']},
         {"$set": {
             "subscription_status": "active",
-            "subscription_start": datetime.utcnow().isoformat()
+            "subscription_plan": "monthly",
+            "subscription_start": datetime.now(timezone.utc).isoformat(),
+            "subscription_end": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
         }}
     )
     return {"success": True, "status": "active"}
+
+# ==================== PUSH NOTIFICATIONS ====================
+
+@api_router.post("/push/register")
+async def register_push_token(data: PushTokenRegister, user = Depends(get_current_user)):
+    """Register a push notification token for a user"""
+    try:
+        # Check if token already exists for this user
+        existing = await db.push_tokens.find_one({"token": data.token})
+        
+        if existing:
+            # Update existing token
+            await db.push_tokens.update_one(
+                {"token": data.token},
+                {"$set": {
+                    "user_id": user['id'],
+                    "is_active": True,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }}
+            )
+        else:
+            # Insert new token
+            await db.push_tokens.insert_one({
+                "id": str(uuid.uuid4()),
+                "user_id": user['id'],
+                "token": data.token,
+                "device_type": data.device_type,
+                "device_model": data.device_model,
+                "is_active": True,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+        
+        return {"success": True, "message": "Push token registered"}
+        
+    except Exception as e:
+        logger.error(f"Push token registration error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to register push token")
+
+@api_router.delete("/push/unregister")
+async def unregister_push_token(token: str, user = Depends(get_current_user)):
+    """Unregister a push notification token"""
+    await db.push_tokens.update_one(
+        {"token": token, "user_id": user['id']},
+        {"$set": {"is_active": False}}
+    )
+    return {"success": True}
+
+@api_router.post("/push/send")
+async def send_push_notification(
+    user_id: str,
+    notification: NotificationPayload,
+    user = Depends(get_current_user)
+):
+    """Send a push notification to a specific user (admin only for now)"""
+    try:
+        # Get user's active push tokens
+        tokens = await db.push_tokens.find({
+            "user_id": user_id,
+            "is_active": True
+        }).to_list(10)
+        
+        if not tokens:
+            raise HTTPException(status_code=404, detail="No active push tokens for user")
+        
+        # Prepare messages for Expo
+        messages = []
+        for push_token in tokens:
+            messages.append({
+                "to": push_token['token'],
+                "sound": "default",
+                "title": notification.title,
+                "body": notification.body,
+                "data": {
+                    **notification.data,
+                    "notification_type": notification.notification_type,
+                    "sent_at": datetime.now(timezone.utc).isoformat()
+                },
+                "badge": 1
+            })
+        
+        # Send to Expo Push Service
+        response = requests.post(
+            EXPO_PUSH_URL,
+            json=messages,
+            headers={
+                "Accept": "application/json",
+                "Content-Type": "application/json"
+            },
+            timeout=30
+        )
+        
+        # Log notification
+        await db.notification_history.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "notification_type": notification.notification_type,
+            "title": notification.title,
+            "body": notification.body,
+            "status": "sent" if response.status_code == 200 else "failed",
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        return {"success": True, "message": f"Notification sent to {len(tokens)} devices"}
+        
+    except Exception as e:
+        logger.error(f"Push notification error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send notification: {str(e)}")
+
+@api_router.post("/push/send-achievement")
+async def send_achievement_notification(
+    achievement_id: str,
+    achievement_name: str,
+    user = Depends(get_current_user)
+):
+    """Send achievement unlocked notification to current user"""
+    try:
+        tokens = await db.push_tokens.find({
+            "user_id": user['id'],
+            "is_active": True
+        }).to_list(10)
+        
+        if not tokens:
+            return {"success": False, "message": "No push tokens registered"}
+        
+        messages = []
+        for push_token in tokens:
+            messages.append({
+                "to": push_token['token'],
+                "sound": "default",
+                "title": "🏆 Achievement Unlocked!",
+                "body": f"Congratulations {user.get('child_name', 'Explorer')}! You've unlocked: {achievement_name}",
+                "data": {
+                    "screen": "journal",
+                    "achievement_id": achievement_id,
+                    "notification_type": "achievement"
+                },
+                "badge": 1
+            })
+        
+        response = requests.post(EXPO_PUSH_URL, json=messages, headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }, timeout=30)
+        
+        return {"success": response.status_code == 200}
+        
+    except Exception as e:
+        logger.error(f"Achievement notification error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+@api_router.get("/push/settings")
+async def get_notification_settings(user = Depends(get_current_user)):
+    """Get user's notification settings"""
+    settings = await db.notification_settings.find_one({"user_id": user['id']})
+    
+    if not settings:
+        # Default settings
+        settings = {
+            "daily_reminder": True,
+            "daily_reminder_time": "16:00",  # 4 PM
+            "achievement_alerts": True,
+            "streak_reminders": True
+        }
+    
+    return settings
+
+@api_router.post("/push/settings")
+async def update_notification_settings(
+    daily_reminder: bool = True,
+    daily_reminder_time: str = "16:00",
+    achievement_alerts: bool = True,
+    streak_reminders: bool = True,
+    user = Depends(get_current_user)
+):
+    """Update user's notification settings"""
+    settings = {
+        "user_id": user['id'],
+        "daily_reminder": daily_reminder,
+        "daily_reminder_time": daily_reminder_time,
+        "achievement_alerts": achievement_alerts,
+        "streak_reminders": streak_reminders,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.notification_settings.update_one(
+        {"user_id": user['id']},
+        {"$set": settings},
+        upsert=True
+    )
+    
+    return {"success": True, "settings": settings}
 
 # ==================== HEALTH CHECK ====================
 

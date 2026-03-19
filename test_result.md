@@ -216,6 +216,78 @@ backend:
         agent: "testing"
         comment: "Pattern Analysis API tested and confirmed working. Fixed minor issue with UserMessage API signature. AI integration with Emergent LLM service is functioning correctly. Returns proper JSON with patterns_found, description, encouragement, and score fields."
 
+  - task: "Stripe Subscription Plans endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/subscription/plans tested and working. Returns 2 plans (monthly $4.99, yearly $39.99) with correct pricing and features. No authentication required."
+
+  - task: "Stripe Checkout endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "POST /api/subscription/checkout tested and working. Requires auth token. Creates Stripe checkout session, returns valid checkout_url and session_id. Integration with Emergent Stripe service confirmed working."
+
+  - task: "Subscription Activate endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "POST /api/subscription/activate tested and working. Demo endpoint for testing - successfully activates subscription status to 'active' for authenticated users."
+
+  - task: "Push Token Registration endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "POST /api/push/register tested and working. Accepts Expo push tokens, device type, and device model. Successfully stores tokens in database for authenticated users."
+
+  - task: "Push Notification Settings GET endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "GET /api/push/settings tested and working. Returns default notification settings (daily_reminder, daily_reminder_time, achievement_alerts, streak_reminders) for authenticated users."
+
+  - task: "Push Notification Settings UPDATE endpoint"
+    implemented: true
+    working: true
+    file: "/app/backend/server.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "POST /api/push/settings tested and working. Updates notification preferences via query parameters. Successfully stores and returns updated settings for authenticated users."
+
 frontend:
   - task: "Welcome Screen"
     implemented: true
@@ -366,3 +438,5 @@ agent_communication:
     message: "Pattern Coach app MVP complete. All screens implemented and verified via screenshots. Backend API tested with curl - all endpoints working. AI pattern analysis uses OpenAI GPT-4o Vision. Test credentials: testparent@example.com / test123456"
   - agent: "testing"
     message: "Backend testing completed successfully. All 8 API endpoints tested and working: Auth (signup/login), User status, Adventure worlds/missions, Complete mission, Badges, Avatar update, Pattern Analysis AI. Fixed minor API integration issue with Pattern Analysis endpoint. JWT authentication working properly. Trial subscription setup correct (7 days). Stars/badges tracking functional. World unlock requirements working (50, 100, 150 stars). AI integration with Emergent LLM confirmed working."
+  - agent: "testing"
+    message: "NEW FEATURES TESTING COMPLETE: Stripe subscription and push notification APIs fully tested and working. All 6 new endpoints passing: Subscription plans (GET), Checkout (POST), Activate (POST), Push register (POST), Push settings (GET/POST). Stripe integration with Emergent payment service confirmed functional - checkout URLs generated correctly, session IDs returned. Push notification system ready - token registration, settings management working. No regression issues found in existing features. All critical functionality operational. Total API success rate: 100% (16/16 endpoints tested)."
