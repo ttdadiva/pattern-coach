@@ -26,7 +26,11 @@
 - **7-day Free Trial:** Automatic on signup
 - **Trial Status Tracking:** Checks expiration on each request
 - **Premium Features:** Access to all worlds beyond "Little Explorers"
-- **Stripe Integration:** Placeholder ready (not connected)
+- **Stripe Integration:** Full payment processing with test keys
+  - Monthly: $4.99/month
+  - Yearly: $39.99/year (33% savings)
+- **Checkout Flow:** Stripe hosted checkout with success/cancel handling
+- **Payment Transactions:** Stored in MongoDB for audit trail
 
 ### 3. Adventure Worlds ✅
 Five themed worlds with progressive unlocking:
@@ -98,6 +102,16 @@ Customization options:
 - **Completed Missions:** Tracked per user
 - **Discovered Patterns:** Logged from camera analysis
 
+### 10. Push Notifications ✅ (NEW)
+- **Expo Push Notifications:** Full integration for mobile
+- **Token Registration:** Stores device tokens in MongoDB
+- **Notification Types:**
+  - Daily reminder: "Time to practice patterns!" (4 PM default)
+  - Achievement alerts: When badges are unlocked
+  - Streak reminders: When users miss a day
+- **User Settings:** Configurable notification preferences
+- **Backend Ready:** Endpoints for sending notifications from server
+
 ---
 
 ## Technical Architecture
@@ -136,8 +150,20 @@ POST /api/roots/progress     - Update word progress
 
 POST /api/analyze-pattern    - AI pattern analysis
 
-POST /api/subscription/checkout  - Start checkout (placeholder)
-POST /api/subscription/activate  - Activate subscription
+# Subscription (Stripe)
+GET  /api/subscription/plans   - Get available plans
+POST /api/subscription/checkout - Create Stripe checkout session
+GET  /api/subscription/status/{session_id} - Check payment status
+POST /api/webhook/stripe       - Handle Stripe webhooks
+POST /api/subscription/activate - Demo subscription activation
+
+# Push Notifications
+POST /api/push/register      - Register device push token
+DELETE /api/push/unregister  - Unregister push token
+POST /api/push/send          - Send notification to user
+POST /api/push/send-achievement - Send achievement notification
+GET  /api/push/settings      - Get notification settings
+POST /api/push/settings      - Update notification settings
 
 GET  /api/health             - Health check
 ```
@@ -223,16 +249,14 @@ Password: test123456
 ## Future Roadmap
 
 ### Phase 2 - Engagement
-- [ ] Daily streak tracking
-- [ ] Push notifications
+- [ ] Daily streak tracking with visual calendar
 - [ ] Sound effects & animations
-- [ ] Interactive mini-games
+- [ ] Interactive mini-games with drag-and-drop
 
 ### Phase 3 - Growth
-- [ ] Parent dashboard
-- [ ] Activity reports
+- [ ] Parent dashboard with progress reports
 - [ ] Time limits / parental controls
-- [ ] Family accounts
+- [ ] Family accounts with multiple children
 
 ### Phase 4 - Expansion
 - [ ] More vocabulary words (500+ target)
@@ -240,14 +264,21 @@ Password: test123456
 - [ ] Story mode with narrative
 - [ ] Multiplayer challenges
 
-### Phase 5 - Monetization
-- [ ] Stripe payment integration
-- [ ] Monthly/yearly subscription plans
-- [ ] In-app purchases for cosmetics
+### Phase 5 - Production
+- [ ] Connect Stripe to production keys
+- [ ] App Store / Play Store submission
+- [ ] Analytics integration
 
 ---
 
 ## Changelog
+
+### v1.1.0 (March 2025) - Payment & Notifications Release
+- **Stripe Payment Integration:** Full checkout flow with monthly ($4.99) and yearly ($39.99) plans
+- **Push Notifications:** Expo push notifications for daily reminders, achievements, and streak alerts
+- **Notification Settings:** User-configurable notification preferences
+- **Payment Transactions:** Full audit trail in MongoDB
+- **Subscription Management:** Checkout status polling and automatic subscription activation
 
 ### v1.0.0 (March 2025) - MVP Release
 - Initial release with all core features

@@ -251,7 +251,7 @@ export default function Subscription() {
                 onPress={() => setSelectedPlan('yearly')}
               >
                 <View style={styles.saveBadge}>
-                  <Text style={styles.saveBadgeText}>SAVE 33%</Text>
+                  <Text style={styles.saveBadgeText}>BEST VALUE</Text>
                 </View>
                 {selectedPlan === 'yearly' && (
                   <View style={[styles.selectedCheck, { top: 15, right: 10 }]}>
@@ -266,7 +266,7 @@ export default function Subscription() {
                   </View>
                 </View>
                 <Text style={[styles.pricingDesc, { color: 'rgba(255,255,255,0.8)' }]}>
-                  Just $3.33/month
+                  Save 33% vs monthly
                 </Text>
               </TouchableOpacity>
             </View>
